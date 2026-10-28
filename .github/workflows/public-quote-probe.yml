@@ -1,0 +1,35 @@
+name: Public quote transport probe
+
+on:
+  push:
+    branches: ['validation/quotes-20261028']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-quote-probe-20261028
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    if: github.repository == 'd7gkdrs4pk-gif/Vibe-Research'
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Collect bounded public responses once
+        env:
+          PYTHONUTF8: '1'
+          PYTHONIOENCODING: utf-8
+        run: python3 diagnostics/quote-probe/collect_public_quotes.py
+      - name: Preserve raw responses even when providers fail
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-quote-probe-20261028-${{ github.run_id }}
+          path: quote-probe-results/
+          if-no-files-found: error
+          retention-days: 7
