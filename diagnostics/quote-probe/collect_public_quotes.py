@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""One-shot independent-source probe, not production acceptance.
+"""Read-only current-day quote collection, not production acceptance.
 Uses the unchanged upstream TDX package parser; Sina is a bounded fallback.
 Only public GET requests, no account data, credentials, trades or scheduling.
-Tencent evidence is reused offline from run 40654539086, not fetched again.
+Tencent and TDX are requested for the current Beijing trading day; no accounts.
 """
 from __future__ import annotations
 import ast
@@ -22,7 +22,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 TZ = timezone(timedelta(hours=8))
-TARGET = '2026-10-28'
+TARGET = datetime.now(TZ).date().isoformat()
 BASE = 'db3a7c60afcb643abdf36933294765d1cbfc2b9c'
 PARSER_PATH = '.agents/skills/data-access/scripts/sources/astock_ported.py'
 PARSER_BLOB = 'f12c82cf1af9d05a93014882394786767b42a5f0'
@@ -107,12 +107,15 @@ def main():
     started = now()
     report = {'target_date': TARGET, 'started_at': started.isoformat(),
               'reference_upstream_commit': BASE, 'runner_commit': os.environ.get('GITHUB_SHA'),
-              'baseline_run_id': 40654539086, 'production_approved': False, 'requests': [],
-              'scope': 'Independent second-provider evidence only; reuse archived Tencent baseline offline.'}
+              'production_approved': False, 'requests': [],
+              'scope': 'Current-day read-only Tencent/TDX quote capture; no personal or trading data.'}
     success = False
     if started.date().isoformat() != TARGET or (started.hour, started.minute) < (15, 5):
         report['blocked_reason'] = 'Wrong Beijing date or before 15:05; do not reuse stale dated probe.'
     else:
+        tencent_url = 'https://qt.gtimg.cn/q=' + ','.join(SYMBOLS)
+        _, tencent_meta = collect(tencent_url, 'tencent_batch', 40_000)
+        report['requests'].append(tencent_meta)
         url = 'https://www.tdx.com.cn/products/data/data/g4day/' + TARGET.replace('-', '') + '.zip'
         body, meta = collect(url, 'tdx_daily_package', 12_000_000)
         report['requests'].append(meta)
